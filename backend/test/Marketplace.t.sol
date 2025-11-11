@@ -101,4 +101,69 @@ contract MarketplaceTest is Test {
         assertEq(nft.ownerOf(tokenId), buyer);
 
     }
+
+    function testBuyItemFailsIfNotEnoughEther() public {
+        vm.prank(user);
+        NFT nft = new NFT();
+
+        vm.prank(user);
+        uint256 tokenId = nft.mintNFT("https://example.com/nft/1");
+        vm.prank(user);
+        nft.approve(address(marketplace), tokenId);
+        vm.prank(user);
+        marketplace.makeItem(IERC721(address(nft)), tokenId, 1 ether);
+        address buyer = address(0x2);
+        uint256 totalPrice = marketplace.getTotalPrice(1);
+        vm.deal(buyer, totalPrice - 0.1 ether); // Not enough ether
+        vm.prank(buyer);
+        vm.expectRevert("Not enough ether to cover item price and market fee");
+        marketplace.BuyItem{value: totalPrice - 0.1 ether}(1);
+    }
+
+    function testBuyItemFailsIfAlreadySold() public {
+        vm.prank(user);
+        NFT nft = new NFT();
+
+        vm.prank(user);
+        uint256 tokenId = nft.mintNFT("https://example.com/nft/1");
+        vm.prank(user);
+        nft.approve(address(marketplace), tokenId);
+        vm.prank(user);
+        marketplace.makeItem(IERC721(address(nft)), tokenId, 1 ether);
+        address buyer = address(0x2);
+        uint256 totalPrice = marketplace.getTotalPrice(1);
+        vm.deal(buyer, totalPrice);
+        vm.prank(buyer);
+        marketplace.BuyItem{value: totalPrice}(1);
+
+        // Attempt to buy again
+        vm.deal(buyer, totalPrice);
+        vm.prank(buyer);
+        vm.expectRevert("Item already sold");
+        marketplace.BuyItem{value: totalPrice}(1);
+    }
+
+    function testBuyItemFailsIfItemDoesNotExist() public {
+        address buyer = address(0x2);
+        uint256 totalPrice = 1 ether;
+        vm.deal(buyer, totalPrice);
+        vm.prank(buyer);
+        vm.expectRevert("Item does not exist");
+        marketplace.BuyItem{value: totalPrice}(1); // No items created yet
+    }
+
+    function testGetTotalPrice() public {
+        vm.prank(user);
+        NFT nft = new NFT();
+
+        vm.prank(user);
+        uint256 tokenId = nft.mintNFT("https://example.com/nft/1");
+        vm.prank(user);
+        nft.approve(address(marketplace), tokenId);
+        vm.prank(user);
+        marketplace.makeItem(IERC721(address(nft)), tokenId, 1 ether);
+
+        uint256 totalPrice = marketplace.getTotalPrice(1);
+        assertEq(totalPrice, 1.01 ether); // 1% fee on 1 ether
+    }
 }
